@@ -1,0 +1,186 @@
+#! /bin/bash
+#--------------------------------------------------------------------------------------------------
+# Author: fmash16
+#--------------------------------------------------------------------------------------------------
+
+#--------------------------------------------------------------------------------------------------
+# Greetings
+#--------------------------------------------------------------------------------------------------
+
+clear
+
+# ansi color sequences
+green="\033[32m"
+red="\033[31m"
+yellow="\033[33m"
+magenta="\033[35m"
+cyan="\033[36m"
+reset="\033[0m"
+
+# Get terminal properties
+terminal=/dev/pts/1
+term_width=$(stty size | cut -d" " -f2)
+term_height=$(stty size | cut -d" " -f1)
+
+# Use ueberzug for image preview
+function view_image {
+    ueberzug layer --parser bash 0< <(
+        declare -Ap add_command=([action]="add" [identifier]="example0" [x]="$2" [y]="$3" [max_width]="$5" [max_height]="$4" [path]="$1")
+        sleep 36000
+    )
+}
+
+# greeting image
+view_image "./greet.png" -1 1 17 $term_width &
+
+# enter padding after greet image
+{ command; while :; do echo; done; } | head -n 19
+echo -e "$yellow----------------------  KONNICHIWA SENPAI --------------------------$reset"
+
+
+#--------------------------------------------------------------------------------------------------
+# App
+#--------------------------------------------------------------------------------------------------
+
+
+
+gogo="https://gogoanime.pe"
+search_url="https://gogoanime.pe//search.html?keyword="
+
+function search_anime {
+    echo -en  "$cyan> Enter search keyword: $reset"
+    read search_keyword
+    echo -e "\n$green[+]$reset Searching....\n"
+    # Replace whitespaces with + for url request
+    search_keyword=`echo $search_keyword | sed -e "s/\ /+/g"`
+
+    # Make search request url
+    search_request_url=$search_url$search_keyword
+
+    # Get the search results
+    IFS=$'\n'               # Set delimiter \n
+    results=(`curl -s "$search_request_url" | grep -i "<p class=\"name\">"`)
+    result_no=$((${#results[*]}-1))   # number of search results returned
+    if [[ $result_no -lt 0 ]]; then
+        echo -e "$red[-] No results found! Make sure to correctly type the name.\n$reset"
+        search_anime
+    fi
+
+    # Store result names and respective links
+    names=()
+    links=()
+    echo "RESULTS:"
+    for i in $(seq 0 $result_no); do
+        names+=(`awk -F 'title="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
+        links+=($gogo`awk -F 'href="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
+    done
+
+    # Print results and prompt for number of anime to open
+    for i in $(seq 0 $result_no); do
+        echo -e "\t$yellow[$i]$reset ${names[$i]}"
+    done
+
+    echo -en "$cyan\n> Enter the number of the anime to watch (0-$result_no): $reset"
+    read select_no
+
+    link_url=${links[$select_no]}
+
+    # Anime cover 
+    clear
+    { command; while :; do echo; done; } | head -n 20 
+    cover=`curl -s "$link_url" | grep -A 1 -i "anime_info_body_bg" | awk -v FS="(src=\"|\">)" '{print $2}'`
+    wget -q $cover -O /tmp/cover.jpg
+    #pkill sleep
+    view_image "/tmp/cover.jpg" $(($term_width-25)) 19 25 25 &
+
+
+    # Anime details
+    echo -e "$green## ${names[$select_no]}
+========================================================$reset"
+    #plot=`curl -s "$link_url" | grep -A 3 -i "plot summary" | awk -v FS="(</span>|</p>)" '{print $2}'`
+    #echo -e "$plot"
+}
+
+function get_ep {
+    total_episodes=`curl -s "$link_url" | grep -m 1 -i "ep_end" | 
+        cut -d\> -f2 | cut -d\< -f1 | cut -f1 | cut -d\- -f2`
+    echo -e "$magenta   Total Number of episodes: $total_episodes $reset"
+
+    echo -en "\n$cyan> Enter episode number to watch (1-$total_episodes): $reset"
+    read -p "" ep_no
+}
+
+function watch_episode {
+    # Takes the link of the anime "link_url" and the episode number "ep_no" to
+    # watch. Gets the download link of the episode and plays in in mpv
+
+    ep_url=`echo $1 | sed "s/category\///g"`-episode-$2
+
+    download_page_url=`curl -s "$ep_url" | grep -i "streamani.io/download" |
+        grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*"`
+        #grep -zoP '<a[^<]*[^<]*href="\K[^"]+'`    # get the href link
+
+    download_link=(`curl -s "$download_page_url" | grep -i "Download" | 
+        grep -i "storage.google" | cut -d\" -f2 | cut -d\" -f1`)
+
+    # Run episode in mpv
+    echo -e "$green\n[+] Playing episode..... $reset"
+    mpv --demuxer-thread=yes --demuxer-readahead-secs=300 ${download_link[0]}
+}
+
+function next_action {
+    echo -e "
+$green# Actions:
+    $yellow[1]$reset Watch next episode
+    $yellow[2]$reset Go home
+    $yellow[3]$reset exit
+    $reset"
+    # Next action
+    echo -en "$cyan> Input: $reset"
+    read next_act
+
+    if [[ next_act -eq 1 ]]; then
+        ep_no=$(($ep_no+1))
+        watch_episode $link_url $ep_no
+    fi
+
+    if [[ next_act -eq 2 ]]; then
+        main
+    fi
+
+    if [[ next_act -eq 3 ]]; then
+        pkill sleep
+        echo "$red ----------------- SAYONARA ;-; -------------------- $reset"
+        exit
+    fi
+}
+
+function main {
+    # Prompt for action
+    echo -e "
+$green# What do you want to do?
+    $yellow[1]$reset  Search
+    $yellow[2]$reset  Continue watching
+    $yellow[3]$reset  View planned to watch
+    $reset"
+
+    echo -ne "$cyan> Input: $reset"
+    read action
+    echo "" 
+
+
+    # Prompt for search keyword
+    if [[ $action -eq 1 ]]; then
+        search_anime
+        get_ep $link_url
+        watch_episode $link_url $ep_no
+    fi
+
+    while true; do
+        next_action
+    done
+}
+
+main
+pkill sleep
+echo "SAYONARA ;-;"
