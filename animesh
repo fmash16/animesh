@@ -55,7 +55,7 @@ if [[ $image_preview -eq 1 ]]; then
     view_image "$HOME/.config/animesh/greet.png" 0 1 $img_height $term_width &
 
     # enter padding after greet image
-    { command; while :; do echo; done; } | head -n $((img_height+1))
+    { command; while :; do echo; done; } | head -n $((img_height+2))
 fi
 echo -e "$yellow----------------  KONNICHIWA SENPAI ---------------------$reset"
 
@@ -101,20 +101,24 @@ function search_anime {
         links+=($gogo`awk -F 'href="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
     done
 
-}
-
-function select_anime {
     # Print results and prompt for number of anime to open
     echo -e "\n$green# RESULTS:$reset"
     for i in $(seq 0 $result_no); do
         echo -e "    $yellow[$i]$reset ${names[$i]}"
     done 
 
+}
+
+function select_anime {
     echo -en "$cyan\n> Enter the number of the anime to watch (0-$result_no): $reset"
     read select_no
 
     link_url=${links[$select_no]}
     anime=${names[$select_no]}
+
+    # clear the screen
+    clear
+    { command; while :; do echo; done; } | head -n 18 
 
     # Anime cover 
     if [[ $term_height -lt 35 ]]; then
@@ -122,9 +126,6 @@ function select_anime {
         image_preview=0
     fi
     if [[ $image_preview -eq 1 ]];then
-        # clear the screen
-        clear
-        { command; while :; do echo; done; } | head -n 18 
 
         cover=`curl -s "$link_url" | grep -A 1 -i "anime_info_body_bg" | awk -v FS="(src=\"|\">)" '{print $2}'`
         wget -q $cover -O /tmp/cover.jpg && \
@@ -163,8 +164,12 @@ $green# Actions:
 
         case $ep_action in
             b)
+                echo -e "\n$green# RESULTS:$reset"
+                for i in $(seq 0 $result_no); do
+                    echo -e "    $yellow[$i]$reset ${names[$i]}"
+                done 
                 select_anime 
-                kill -13 $img_pid
+                kill -13 $img_pid   # TODO: add condition for checking if cover image is on
                 get_ep
                 break
                 ;;
