@@ -38,11 +38,17 @@ view_image "./greet.png" -1 1 17 $term_width &
 echo -e "$yellow----------------------  KONNICHIWA SENPAI --------------------------$reset"
 
 
+# Init
+if [ ! -d "$HOME/.config/animesh" ]; then
+    mkdir $HOME/.config/animesh
+fi
+
+watching_file="$HOME/.config/animesh/watching"
+plan_file="$HOME/.config/animesh/plan"
+
 #--------------------------------------------------------------------------------------------------
 # App
 #--------------------------------------------------------------------------------------------------
-
-
 
 gogo="https://gogoanime.pe"
 search_url="https://gogoanime.pe//search.html?keyword="
@@ -69,7 +75,7 @@ function search_anime {
     # Store result names and respective links
     names=()
     links=()
-    echo "RESULTS:"
+    echo -e "$green# RESULTS:$reset"
     for i in $(seq 0 $result_no); do
         names+=(`awk -F 'title="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
         links+=($gogo`awk -F 'href="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
@@ -77,17 +83,22 @@ function search_anime {
 
     # Print results and prompt for number of anime to open
     for i in $(seq 0 $result_no); do
-        echo -e "\t$yellow[$i]$reset ${names[$i]}"
+        echo -e "    $yellow[$i]$reset ${names[$i]}"
     done
+}
 
+function select_anime {
     echo -en "$cyan\n> Enter the number of the anime to watch (0-$result_no): $reset"
     read select_no
 
     link_url=${links[$select_no]}
+    anime=${names[$select_no]}
 
-    # Anime cover 
+    # clear the screen
     clear
     { command; while :; do echo; done; } | head -n 20 
+
+    # Anime cover 
     cover=`curl -s "$link_url" | grep -A 1 -i "anime_info_body_bg" | awk -v FS="(src=\"|\">)" '{print $2}'`
     wget -q $cover -O /tmp/cover.jpg
     #pkill sleep
@@ -95,7 +106,7 @@ function search_anime {
 
 
     # Anime details
-    echo -e "$green## ${names[$select_no]}
+    echo -e "$green## $anime
 ========================================================$reset"
     #plot=`curl -s "$link_url" | grep -A 3 -i "plot summary" | awk -v FS="(</span>|</p>)" '{print $2}'`
     #echo -e "$plot"
@@ -131,50 +142,137 @@ function watch_episode {
 function next_action {
     echo -e "
 $green# Actions:
-    $yellow[1]$reset Watch next episode
-    $yellow[2]$reset Go home
-    $yellow[3]$reset exit
+    $yellow[n]$reset Watch next episode
+    $yellow[p]$reset Watch previous episode
+    $yellow[e]$reset Enter new episode number to watch
+    $yellow[w]$reset Add anime to watching list
+    $yellow[f]$reset Add anime to "Plan to watch" list
+    $yellow[r]$reset Remove from all lists
+    $yellow[h]$reset Go home
+    $yellow[q]$reset Quit
     $reset"
     # Next action
     echo -en "$cyan> Input: $reset"
     read next_act
 
-    if [[ next_act -eq 1 ]]; then
-        ep_no=$(($ep_no+1))
-        watch_episode $link_url $ep_no
-    fi
-
-    if [[ next_act -eq 2 ]]; then
-        main
-    fi
-
-    if [[ next_act -eq 3 ]]; then
-        pkill sleep
-        echo "$red ----------------- SAYONARA ;-; -------------------- $reset"
-        exit
-    fi
+    case $next_act in
+        n)
+            ep_no=$(($ep_no+1))
+            watch_episode $link_url $ep_no
+            ;;
+        p)
+            ep_no=$(($ep_no-1))
+            watch_episode $link_url $ep_no
+            ;;
+        e)
+            get_ep $link_url
+            watch_episode $link_url $ep_no
+            ;;
+        w)
+            echo "$anime##$link_url" >> $watching_file
+            echo -e "$green[+]$reset $anime Added to watching list"
+            ;;
+        f)
+            echo "$anime##$link_url" >> $plan_file
+            echo -e "$green[+]$reset $anime Added to plan to watch list"
+            ;;
+        r)
+            escaped_anime=$(printf '%s\n' "$anime" | sed -e 's/[]\/$*.^[]/\\&/g');
+            sed -i "/$escaped_anime/d" $watching_file
+            sed -i "/$escaped_anime/d" $plan_file
+            echo -e "$green[+]$reset $anime Removed from list"
+            ;;
+        h)
+            main
+            ;;
+        q)
+            pkill sleep
+            echo -e "$red ----------------- SAYONARA ;-; -------------------- $reset"
+            exit
+            ;;
+        *)
+            echo "ERROR!"
+            ;;
+    esac
 }
+
+function view_watchlist {
+    #while IFS= read -r line; do
+    i=0
+    names=()
+    links=()
+
+    # Show currently watching anime
+
+    echo -e "$green# Watching:$reset"
+
+    while IFS= read -r line; do
+        if [ -d "$watching_file" ]; then
+            echo -e "No anime in currently watching list."
+            break
+        fi
+
+        names+=("`awk -F '##' '{print $1}' <<< $line`")
+        links+=("`awk -F '##' '{print $2}' <<< $line`")
+
+        echo -e "    $yellow[$i]$reset ${names[$i]}"
+        i=$((i+1))
+    done < "$watching_file"
+
+    # Show plan to watch anime
+
+    echo -e "\n$green# Plan to watch:$reset"
+
+    while read -r line; do
+        if [ -d "$plan_file" ]; then
+            echo -e "No anime in plan to watch list."
+            break
+        fi
+
+        names+=("`awk -F '##' '{print $1}' <<< $line`")
+        links+=("`awk -F '##' '{print $2}' <<< $line`")
+
+        echo -e "    $yellow[$i]$reset ${names[$i]}"
+        i=$((i+1))
+    done < "$plan_file"
+
+    result_no=$((i-1))
+
+}
+
 
 function main {
     # Prompt for action
     echo -e "
 $green# What do you want to do?
-    $yellow[1]$reset  Search
-    $yellow[2]$reset  Continue watching
-    $yellow[3]$reset  View planned to watch
+    $yellow[s]$reset  Search
+    $yellow[c]$reset  Continue watching
+    $yellow[v]$reset  View planned to watch
     $reset"
 
     echo -ne "$cyan> Input: $reset"
     read action
     echo "" 
 
-
-    # Prompt for search keyword
-    if [[ $action -eq 1 ]]; then
-        search_anime
-        get_ep $link_url
-        watch_episode $link_url $ep_no
-    fi
+    case $action in
+        s)
+            search_anime
+            select_anime
+            get_ep $link_url
+            watch_episode $link_url $ep_no
+            ;;
+        c)
+            continue_watch
+            ;;
+        v)
+            view_watchlist
+            select_anime
+            get_ep $link_url
+            watch_episode $link_url $ep_no
+            ;;
+        *)
+            echo "ERROR!"
+    esac
 
     while true; do
         next_action

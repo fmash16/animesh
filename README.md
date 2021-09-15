@@ -14,8 +14,8 @@ images.
 
 * Use ueberzug to view anime cover images  
 * Save "currently watching" animes and keep record of the episodes watched and
-  unwatched. (TODO)  
-* Save anime for watching later in a "watchlist" (TODO)
+  unwatched.
+* Save anime for watching later in a "watchlist"
 * Display anime MAL ratings and other infos (TODO)
 * Import MAL watchlist (?)
 
