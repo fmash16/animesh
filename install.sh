@@ -1,5 +1,5 @@
 #!/bin/sh
 
 sudo cp ./animesh /usr/local/bin/
-mkdir ~/.config/animesh
-cp greet.png ~/.config/animesh/
+mkdir -p $HOME/.config/animesh
+cp animesh.png $HOME/.config/animesh/greet.png

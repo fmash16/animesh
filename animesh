@@ -7,11 +7,11 @@
 #                                                                                                 #
 ###################################################################################################
 
-#--------------------------------------------------------------------------------------------------
-# Greetings
-#--------------------------------------------------------------------------------------------------
+# User configs ----------------------------------------------------------------------------------
 
-clear
+image_preview=1     # 0 to turn off, 1 to turn on
+
+#------------------------------------------------------------------------------------------------
 
 # ansi color sequences
 green="\033[32m"
@@ -22,9 +22,14 @@ cyan="\033[36m"
 reset="\033[0m"
 
 # Get terminal properties
-terminal=/dev/pts/1
 term_width=$(stty size | cut -d" " -f2)
 term_height=$(stty size | cut -d" " -f1)
+set +m
+
+# Reduce witdth, to align anime cover image with the greeting image
+if [[ $term_width -gt 120 ]];then
+    term_width=118
+fi
 
 # Use ueberzug for image preview
 function view_image {
@@ -35,12 +40,24 @@ function view_image {
 }
 
 # greeting image
-view_image "$HOME/.config/animesh/greet.png" 0 1 17 $term_width &
+clear
+if [[ $term_height -lt 35 ]]; then
+    # if terminal height too small, resize image 
+    img_height=$((term_height/4)) 
+else if [[ $term_height -lt 25 ]]; then
+    image_preview=0
+else
+    img_height=17
+fi
+fi
 
-# enter padding after greet image
-{ command; while :; do echo; done; } | head -n 19
-echo -e "$yellow----------------------  KONNICHIWA SENPAI --------------------------$reset"
+if [[ $image_preview -eq 1 ]]; then
+    view_image "$HOME/.config/animesh/greet.png" 0 1 $img_height $term_width &
 
+    # enter padding after greet image
+    { command; while :; do echo; done; } | head -n $((img_height+1))
+fi
+echo -e "$yellow----------------  KONNICHIWA SENPAI ---------------------$reset"
 
 # Init
 if [ ! -d "$HOME/.config/animesh" ]; then
@@ -60,7 +77,7 @@ search_url="https://gogoanime.pe//search.html?keyword="
 function search_anime {
     echo -en  "$cyan> Enter search keyword: $reset"
     read search_keyword
-    echo -e "\n$green[+]$reset Searching....\n"
+    echo -e "\n$green[+]$reset Searching...."
     # Replace whitespaces with + for url request
     search_keyword=`echo $search_keyword | sed -e "s/\ /+/g"`
 
@@ -79,34 +96,41 @@ function search_anime {
     # Store result names and respective links
     names=()
     links=()
-    echo -e "$green# RESULTS:$reset"
     for i in $(seq 0 $result_no); do
         names+=(`awk -F 'title="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
         links+=($gogo`awk -F 'href="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
     done
 
-    # Print results and prompt for number of anime to open
-    for i in $(seq 0 $result_no); do
-        echo -e "    $yellow[$i]$reset ${names[$i]}"
-    done
 }
 
 function select_anime {
+    # Print results and prompt for number of anime to open
+    echo -e "\n$green# RESULTS:$reset"
+    for i in $(seq 0 $result_no); do
+        echo -e "    $yellow[$i]$reset ${names[$i]}"
+    done 
+
     echo -en "$cyan\n> Enter the number of the anime to watch (0-$result_no): $reset"
     read select_no
 
     link_url=${links[$select_no]}
     anime=${names[$select_no]}
 
-    # clear the screen
-    clear
-    { command; while :; do echo; done; } | head -n 20 
-
     # Anime cover 
-    cover=`curl -s "$link_url" | grep -A 1 -i "anime_info_body_bg" | awk -v FS="(src=\"|\">)" '{print $2}'`
-    wget -q $cover -O /tmp/cover.jpg
-    #pkill sleep
-    view_image "/tmp/cover.jpg" $(($term_width-25)) 19 25 25 &
+    if [[ $term_height -lt 35 ]]; then
+        # if terminal height too small, don't show cover
+        image_preview=0
+    fi
+    if [[ $image_preview -eq 1 ]];then
+        # clear the screen
+        clear
+        { command; while :; do echo; done; } | head -n 18 
+
+        cover=`curl -s "$link_url" | grep -A 1 -i "anime_info_body_bg" | awk -v FS="(src=\"|\">)" '{print $2}'`
+        wget -q $cover -O /tmp/cover.jpg && \
+        view_image "/tmp/cover.jpg" $(($term_width-25)) 19 25 25 &
+        img_pid=`ps ax | grep "sleep 3600" | tail -n2 | head -n1 | cut -d" " -f1`
+    fi
 
 
     # Anime details
@@ -126,6 +150,7 @@ function get_ep {
         echo -e "
 $green# Actions:
     $yellow[1-$total_episodes]$reset Episode number to watch
+    $yellow[b]$reset Go back 
 
     $yellow[w]$reset Add anime to current watching list
     $yellow[f]$reset Add anime to future watch list
@@ -133,10 +158,16 @@ $green# Actions:
     $yellow[h]$reset Go home
     $reset"
 
-        echo -en "\n$cyan> Input : $reset"
+        echo -en "$cyan> Input : $reset"
         read ep_action
 
         case $ep_action in
+            b)
+                select_anime 
+                kill -13 $img_pid
+                get_ep
+                break
+                ;;
             w)
                 echo "$anime##$link_url" >> $watching_file
                 echo -e "$green[+]$reset $anime Added to watching list"
@@ -152,6 +183,7 @@ $green# Actions:
                 echo -e "$green[+]$reset $anime Removed from list"
                 ;;
             h)
+                kill -13 $img_pid
                 main
                 ;;
             *)
@@ -226,10 +258,10 @@ $green# Actions:
             echo -e "$green[+]$reset $anime Removed from list"
             ;;
         h)
+            kill -13 $img_pid
             main
             ;;
         q)
-            pkill sleep
             echo -e "$red ----------------- SAYONARA ;-; -------------------- $reset"
             exit
             ;;
@@ -284,7 +316,9 @@ function view_watchlist {
 }
 
 
+
 function main {
+
     # Prompt for action
     echo -e "
 $green# What do you want to do?
@@ -323,5 +357,4 @@ $green# What do you want to do?
 }
 
 main
-pkill sleep
 echo "SAYONARA ;-;"
