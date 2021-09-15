@@ -35,7 +35,7 @@ function view_image {
 }
 
 # greeting image
-view_image "$HOME/.config/animesh/greet.png" -1 1 17 $term_width &
+view_image "$HOME/.config/animesh/greet.png" 0 1 17 $term_width &
 
 # enter padding after greet image
 { command; while :; do echo; done; } | head -n 19
