@@ -1,7 +1,11 @@
 #! /bin/bash
-#--------------------------------------------------------------------------------------------------
-# Author: fmash16
-#--------------------------------------------------------------------------------------------------
+
+###################################################################################################
+#                                                                                                 #
+#   Author:    fmash16                                                                            #
+#   Created:   14.09.2021                                                                         #
+#                                                                                                 #
+###################################################################################################
 
 #--------------------------------------------------------------------------------------------------
 # Greetings
@@ -31,7 +35,7 @@ function view_image {
 }
 
 # greeting image
-view_image "./greet.png" -1 1 17 $term_width &
+view_image "$HOME/.config/animesh/greet.png" -1 1 17 $term_width &
 
 # enter padding after greet image
 { command; while :; do echo; done; } | head -n 19
@@ -117,8 +121,50 @@ function get_ep {
         cut -d\> -f2 | cut -d\< -f1 | cut -f1 | cut -d\- -f2`
     echo -e "$magenta   Total Number of episodes: $total_episodes $reset"
 
-    echo -en "\n$cyan> Enter episode number to watch (1-$total_episodes): $reset"
-    read -p "" ep_no
+    while true; do
+
+        echo -e "
+$green# Actions:
+    $yellow[1-$total_episodes]$reset Episode number to watch
+
+    $yellow[w]$reset Add anime to current watching list
+    $yellow[f]$reset Add anime to future watch list
+    $yellow[r]$reset Remove from all lists
+    $yellow[h]$reset Go home
+    $reset"
+
+        echo -en "\n$cyan> Input : $reset"
+        read ep_action
+
+        case $ep_action in
+            w)
+                echo "$anime##$link_url" >> $watching_file
+                echo -e "$green[+]$reset $anime Added to watching list"
+                ;;
+            f)
+                echo "$anime##$link_url" >> $plan_file
+                echo -e "$green[+]$reset $anime Added to plan to watch list"
+                ;;
+            r)
+                escaped_anime=$(printf '%s\n' "$anime" | sed -e 's/[]\/$*.^[]/\\&/g');
+                sed -i "/$escaped_anime/d" $watching_file
+                sed -i "/$escaped_anime/d" $plan_file
+                echo -e "$green[+]$reset $anime Removed from list"
+                ;;
+            h)
+                main
+                ;;
+            *)
+                if [[ "$ep_action" =~ ^[0-9]{1,3}$ ]]; then
+                    ep_no=$ep_action
+                    watch_episode $link_url $ep_no
+                    break
+                else
+                    echo -e "INPUT ERROR!"
+                fi
+                ;;
+        esac
+    done
 }
 
 function watch_episode {
@@ -144,10 +190,7 @@ function next_action {
 $green# Actions:
     $yellow[n]$reset Watch next episode
     $yellow[p]$reset Watch previous episode
-    $yellow[e]$reset Enter new episode number to watch
-    $yellow[w]$reset Add anime to watching list
-    $yellow[f]$reset Add anime to "Plan to watch" list
-    $yellow[r]$reset Remove from all lists
+    $yellow[e]$reset Enter new episode number to watch / add anime to list
     $yellow[h]$reset Go home
     $yellow[q]$reset Quit
     $reset"
@@ -247,7 +290,7 @@ function main {
 $green# What do you want to do?
     $yellow[s]$reset  Search
     $yellow[c]$reset  Continue watching
-    $yellow[v]$reset  View planned to watch
+    $yellow[v]$reset  View watch list
     $reset"
 
     echo -ne "$cyan> Input: $reset"
@@ -259,7 +302,7 @@ $green# What do you want to do?
             search_anime
             select_anime
             get_ep $link_url
-            watch_episode $link_url $ep_no
+            #watch_episode $link_url $ep_no
             ;;
         c)
             continue_watch
@@ -268,7 +311,7 @@ $green# What do you want to do?
             view_watchlist
             select_anime
             get_ep $link_url
-            watch_episode $link_url $ep_no
+            #watch_episode $link_url $ep_no
             ;;
         *)
             echo "ERROR!"
