@@ -13,6 +13,11 @@ image_preview=1     # 0 to turn off, 1 to turn on
 
 #------------------------------------------------------------------------------------------------
 
+
+#--------------------------------------------------------------------------------------------------
+#  Variables
+#--------------------------------------------------------------------------------------------------
+
 # ansi color sequences
 green="\033[32m"
 red="\033[31m"
@@ -24,7 +29,6 @@ reset="\033[0m"
 # Get terminal properties
 term_width=$(stty size | cut -d" " -f2)
 term_height=$(stty size | cut -d" " -f1)
-set +m
 
 # Reduce witdth, to align anime cover image with the greeting image
 if [[ $term_width -gt 120 ]];then
@@ -39,27 +43,22 @@ function view_image {
     )
 }
 
-# greeting image
-clear
+# Force resize/disable image preview if terminal too small
 if [[ $term_height -lt 35 ]]; then
-    # if terminal height too small, resize image 
-    img_height=$((term_height/4)) 
+    img_height=$((term_height/4))           # resize
 else if [[ $term_height -lt 25 ]]; then
-    image_preview=0
+    image_preview=0                         # turn off
 else
     img_height=17
 fi
 fi
 
+# View greeting image if image_preview set true
 if [[ $image_preview -eq 1 ]]; then
     view_image "$HOME/.config/animesh/greet.png" 0 1 $img_height $term_width &
-
-    # enter padding after greet image
-    { command; while :; do echo; done; } | head -n $((img_height+2))
 fi
-echo -e "$yellow----------------  KONNICHIWA SENPAI ---------------------$reset"
 
-# Init
+# Init config directory if not existing
 if [ ! -d "$HOME/.config/animesh" ]; then
     mkdir $HOME/.config/animesh
 fi
@@ -73,6 +72,14 @@ plan_file="$HOME/.config/animesh/plan"
 
 gogo="https://gogoanime.pe"
 search_url="https://gogoanime.pe//search.html?keyword="
+
+function top_padding {
+    clear
+    if [[ $image_preview -eq 1 ]]; then
+        # enter padding after greet image
+        { command; while :; do echo; done; } | head -n $((img_height+1))
+    fi
+}
 
 function search_anime {
     echo -en  "$cyan> Enter search keyword: $reset"
@@ -101,24 +108,27 @@ function search_anime {
         links+=($gogo`awk -F 'href="' '{print $2}' <<< ${results[$i]} | cut -d\" -f 1`)
     done
 
-    # Print results and prompt for number of anime to open
-    echo -e "\n$green# RESULTS:$reset"
-    for i in $(seq 0 $result_no); do
-        echo -e "    $yellow[$i]$reset ${names[$i]}"
-    done 
-
 }
 
 function select_anime {
+    # Print results and prompt for number of anime to open
+    if [[ $action == 's' ]]; then
+        echo -e "\n$green# RESULTS:$reset"
+        for i in $(seq 0 $result_no); do
+            echo -e "    $yellow[$i]$reset ${names[$i]}"
+        done 
+    fi
+
     echo -en "$cyan\n> Enter the number of the anime to watch (0-$result_no): $reset"
     read select_no
 
     link_url=${links[$select_no]}
     anime=${names[$select_no]}
+}
 
+function print_anime_info {
     # clear the screen
-    clear
-    { command; while :; do echo; done; } | head -n 18 
+    top_padding
 
     # Anime cover 
     if [[ $term_height -lt 35 ]]; then
@@ -133,21 +143,20 @@ function select_anime {
         img_pid=`ps ax | grep "sleep 3600" | tail -n2 | head -n1 | cut -d" " -f1`
     fi
 
-
     # Anime details
     echo -e "$green## $anime
 ========================================================$reset"
     #plot=`curl -s "$link_url" | grep -A 3 -i "plot summary" | awk -v FS="(</span>|</p>)" '{print $2}'`
     #echo -e "$plot"
-}
 
-function get_ep {
     total_episodes=`curl -s "$link_url" | grep -m 1 -i "ep_end" | 
         cut -d\> -f2 | cut -d\< -f1 | cut -f1 | cut -d\- -f2`
     echo -e "$magenta   Total Number of episodes: $total_episodes $reset"
+}
 
+function get_ep {
+    print_anime_info
     while true; do
-
         echo -e "
 $green# Actions:
     $yellow[1-$total_episodes]$reset Episode number to watch
@@ -164,11 +173,11 @@ $green# Actions:
 
         case $ep_action in
             b)
-                echo -e "\n$green# RESULTS:$reset"
-                for i in $(seq 0 $result_no); do
-                    echo -e "    $yellow[$i]$reset ${names[$i]}"
-                done 
-                select_anime 
+                top_padding
+                case $action in
+                    s) select_anime ;;
+                    v) view_watchlist; select_anime;;
+                esac
                 kill -13 $img_pid   # TODO: add condition for checking if cover image is on
                 get_ep
                 break
@@ -212,13 +221,12 @@ function watch_episode {
 
     download_page_url=`curl -s "$ep_url" | grep -i "streamani.io/download" |
         grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*"`
-        #grep -zoP '<a[^<]*[^<]*href="\K[^"]+'`    # get the href link
 
     download_link=(`curl -s "$download_page_url" | grep -i "Download" | 
         grep -i "storage.google" | cut -d\" -f2 | cut -d\" -f1`)
 
     # Run episode in mpv
-    echo -e "$green\n[+] Playing episode..... $reset"
+    echo -e "$green\n[+] Playing episode $ep_no ..... $reset"
     mpv --demuxer-thread=yes --demuxer-readahead-secs=300 ${download_link[0]}
 }
 
@@ -320,9 +328,10 @@ function view_watchlist {
 
 }
 
-
-
 function main {
+    #greet
+    top_padding
+    echo -e "$yellow----------------  KONNICHIWA SENPAI ---------------------$reset"
 
     # Prompt for action
     echo -e "
@@ -341,7 +350,6 @@ $green# What do you want to do?
             search_anime
             select_anime
             get_ep $link_url
-            #watch_episode $link_url $ep_no
             ;;
         c)
             continue_watch
@@ -350,16 +358,15 @@ $green# What do you want to do?
             view_watchlist
             select_anime
             get_ep $link_url
-            #watch_episode $link_url $ep_no
             ;;
         *)
-            echo "ERROR!"
+            echo -e "$red[-] ERROR! Invalid input.$reset"
+            main
     esac
 
     while true; do
         next_action
     done
 }
-
 main
 echo "SAYONARA ;-;"
