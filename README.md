@@ -14,7 +14,7 @@ images.
 
 * Use ueberzug to view anime cover images  
 * Save "currently watching" animes and keep record of the episodes watched and
-  unwatched.
+  unwatched. [TODO]
 * Save anime for watching later in a "watchlist"
 * Display anime MAL ratings and other infos (TODO)
 * Import MAL watchlist (?)
@@ -27,9 +27,27 @@ images.
 3. libxext-dev
 4. curl
 
+# Compatibility
+
+## Working:
+
+    * st
+    * urxvt
+    * xterm
+    * gnome-terminal 
+
+P.S. Greeting image might overlap a bit with the terminal borders in some
+terminals
+
 # Installation
 
 Install the necessary dependencies for the script to run.
+
+* On archlinux, run
+
+  ```sh
+  sudo pacman -Syy mpv ueberzug curl
+  ```
 
 * On ubuntu, run
 
@@ -37,12 +55,6 @@ Install the necessary dependencies for the script to run.
   sudo apt-get install curl libxext-dev python3-pip mpv
   pip3 install ueberzug --user
   ``` 
-
-* On archlinux, run
-
-  ```sh
-  sudo pacman -Syy mpv ueberzug curl
-  ```
 
 * On void, run
 
@@ -65,4 +77,3 @@ the user through the steps interactively.
 <p align="center">
   <img src="./workflow.gif" />
 </p>
-

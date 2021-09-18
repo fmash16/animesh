@@ -24,6 +24,7 @@ red="\033[31m"
 yellow="\033[33m"
 magenta="\033[35m"
 cyan="\033[36m"
+blue="\033[34m"
 reset="\033[0m"
 
 # Get terminal properties
@@ -38,7 +39,8 @@ fi
 # Use ueberzug for image preview
 function view_image {
     ueberzug layer --parser bash 0< <(
-        declare -Ap add_command=([action]="add" [identifier]="example0" [x]="$2" [y]="$3" [max_width]="$5" [max_height]="$4" [path]="$1")
+        declare -Ap add_command=([action]="add" [identifier]="example0" \
+            [x]="$2" [y]="$3" [max_width]="$5" [max_height]="$4" [path]="$1")
         sleep 36000
     )
 }
@@ -65,6 +67,7 @@ fi
 
 watching_file="$HOME/.config/animesh/watching"
 plan_file="$HOME/.config/animesh/plan"
+ep_file="$HOME/.config/animesh/ep_history"
 
 #--------------------------------------------------------------------------------------------------
 # App
@@ -72,6 +75,7 @@ plan_file="$HOME/.config/animesh/plan"
 
 gogo="https://gogoanime.pe"
 search_url="https://gogoanime.pe//search.html?keyword="
+ep_no=0
 
 function top_padding {
     clear
@@ -122,6 +126,8 @@ function select_anime {
     echo -en "$cyan\n> Enter the number of the anime to watch (0-$result_no): $reset"
     read select_no
 
+    if [[ $select_no -eq 'b' ]]; then main; fi
+
     link_url=${links[$select_no]}
     anime=${names[$select_no]}
 }
@@ -152,6 +158,7 @@ function print_anime_info {
     total_episodes=`curl -s "$link_url" | grep -m 1 -i "ep_end" | 
         cut -d\> -f2 | cut -d\< -f1 | cut -f1 | cut -d\- -f2`
     echo -e "$magenta   Total Number of episodes: $total_episodes $reset"
+    echo -e "$blue   Last watched episode: $ep_no $reset"
 }
 
 function get_ep {
@@ -219,7 +226,11 @@ function watch_episode {
 
     ep_url=`echo $1 | sed "s/category\///g"`-episode-$2
 
-    download_page_url=`curl -s "$ep_url" | grep -i "streamani.io/download" |
+    # ERROR! download link no longer streamani
+    #download_page_url=`curl -s "$ep_url" | grep -i "streamani.io/download" |
+        #grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*"`
+
+    download_page_url=`curl -s "$ep_url" | grep -i "goload.one/download" |
         grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*"`
 
     download_link=(`curl -s "$download_page_url" | grep -i "Download" | 
@@ -290,25 +301,7 @@ function view_watchlist {
     names=()
     links=()
 
-    # Show currently watching anime
-
-    echo -e "$green# Watching:$reset"
-
-    while IFS= read -r line; do
-        if [ -d "$watching_file" ]; then
-            echo -e "No anime in currently watching list."
-            break
-        fi
-
-        names+=("`awk -F '##' '{print $1}' <<< $line`")
-        links+=("`awk -F '##' '{print $2}' <<< $line`")
-
-        echo -e "    $yellow[$i]$reset ${names[$i]}"
-        i=$((i+1))
-    done < "$watching_file"
-
     # Show plan to watch anime
-
     echo -e "\n$green# Plan to watch:$reset"
 
     while read -r line; do
@@ -323,9 +316,35 @@ function view_watchlist {
         echo -e "    $yellow[$i]$reset ${names[$i]}"
         i=$((i+1))
     done < "$plan_file"
+    echo -e "\n    $yellow[b]$reset Go back to home"
 
     result_no=$((i-1))
+}
 
+function continue_watch {
+    #while IFS= read -r line; do
+    i=0
+    names=()
+    links=()
+
+    # Show currently watching anime
+
+    echo -e "$green# Currently Watching:$reset"
+
+    while IFS= read -r line; do
+        if [ -d "$watching_file" ]; then
+            echo -e "No anime in currently watching list."
+            break
+        fi
+
+        names+=("`awk -F '##' '{print $1}' <<< $line`")
+        links+=("`awk -F '##' '{print $2}' <<< $line`")
+
+        echo -e "    $yellow[$i]$reset ${names[$i]}"
+        i=$((i+1))
+    done < "$watching_file"
+    echo -e "\n    $yellow[b]$reset Go back to home"
+    result_no=$((i-1))
 }
 
 function main {
@@ -353,6 +372,8 @@ $green# What do you want to do?
             ;;
         c)
             continue_watch
+            select_anime
+            get_ep $link_url
             ;;
         v)
             view_watchlist
